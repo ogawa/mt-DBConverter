@@ -150,6 +150,7 @@ HTML
       }
     }
 
+    ## %ids will hold the highest IDs of each class.
     my %ids;
 
     for my $class (@CLASSES) {
@@ -176,7 +177,8 @@ HTML
       while (my $o = $iter->()) {
 	$ids{$class} = $o->id
 	  if !$ids{$class} || $o->id > $ids{$class};
-
+	## Look for duplicate template, category, and author names,
+	## because we have uniqueness constraints in the DB.
 	if ($class eq 'MT::Template') {
 	  my $key = lc($o->name) . $o->blog_id;
 	  if ($names{$class}{$key}++) {
@@ -216,7 +218,6 @@ HTML
 	    if defined $o->allow_comments && $o->allow_comments eq '';
 	}
 
-
 	$i++;
 	print $o->save ? "." : "!<br />" . $o->errstr;
 	$i % 10 or print " ";
@@ -224,6 +225,19 @@ HTML
       }
       print "</p>\n\n";
     }
+
+    if ($type eq 'postgres') {
+        print "Updating sequences\n";
+        my $dbh = MT::Object->driver->{dbh};
+        for my $class (keys %ids) {
+            print "    $class => $ids{$class}\n";
+            my $seq = 'mt_' . $class->datasource . '_' .
+                      $class->properties->{primary_key};
+            $dbh->do("select setval('$seq', $ids{$class})")
+                or die $dbh->errstr;
+        }
+    }
+
   };
 
   if ($@) {
