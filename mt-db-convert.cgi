@@ -1,31 +1,31 @@
 #!/usr/bin/perl -w
-# This code cannot be redistributed without permissions.
+# mt-db-convert.cgi: converting your MT data between multiple db engines
+# This is a derived work from the following:
 #
-# mt-db-convert.cgi: converting your MT data between multiple data storage
-
+# Copyright 2001-2004 Six Apart. This code cannot be redistributed without
+# permission from www.movabletype.org.
+#
+# $Id: mt-db2sql.cgi,v 1.18 2004/09/29 21:33:03 ezra Exp $
 use strict;
-local $| = 1;
 
 my($MT_DIR);
 BEGIN {
-  if ($0 =~ m!(.*[/\\])!) {
-    $MT_DIR = $1;
-  } else {
-    $MT_DIR = './';
-  }
-  unshift @INC, $MT_DIR . 'lib';
-  unshift @INC, $MT_DIR . 'extlib';
+    if ($0 =~ m!(.*[/\\])!) {
+        $MT_DIR = $1;
+    } else {
+        $MT_DIR = './';
+    }
+    unshift @INC, $MT_DIR . 'lib';
+    unshift @INC, $MT_DIR . 'extlib';
 }
 
-use CGI;
-
+local $| = 1;
 print "Content-Type: text/html\n\n";
 print <<HTML;
 <html>
 <head><title>MT-DB-CONVERT: Converting your MT data</title></head>
 <body>
-<p><strong>MT-DB-CONVERT: Coverting your MT data</strong></p>
-
+<p><strong>MT-DB-CONVERT: Coverting your MT data between multiple db engines</strong></p>
 HTML
 
 my @CLASSES = qw( MT::Author MT::Blog MT::Category MT::Comment MT::Entry
@@ -33,35 +33,39 @@ my @CLASSES = qw( MT::Author MT::Blog MT::Category MT::Comment MT::Entry
                   MT::Placement MT::Template MT::TemplateMap MT::Trackback
                   MT::TBPing );
 
+use File::Spec;
+
 my @DBSPECS = qw( DataSource ObjectDriver Database DBUser DBHost DBPassword );
 
 require MT;
 my $mt = MT->new(Config => $MT_DIR . 'mt.cfg', Directory => $MT_DIR)
-  or die MT->errstr;
+    or die MT->errstr;
 my $cfg = $mt->{cfg};
 
+use CGI;
 my $q = CGI->new;
 
-my %src;
-my %dest;
+my (%src, %dst);
 
 for my $dbspec (@DBSPECS) {
   $src{$dbspec} = $q->param('src_' . $dbspec) || '';
-  $dest{$dbspec} = $q->param('dest_' . $dbspec) || '';
+  $dst{$dbspec} = $q->param('dst_' . $dbspec) || '';
 }
 
+# If src and dst dbspecs not given
 if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
-    !$dest{ObjectDriver} || ($dest{ObjectDriver} eq 'DBM' && $dest{DataSource})) {
+    !$dst{ObjectDriver} || ($dst{ObjectDriver} eq 'DBM' && $dst{DataSource})) {
 
-  for my $dbspec (@DBSPECS) {
-    $src{$dbspec} ||= $cfg->$dbspec();
-  }
+    for my $dbspec (@DBSPECS) {
+	$src{$dbspec} ||= $cfg->$dbspec();
+    }
 
-  my %src_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
-  my %dest_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
-  $src_selected{$src{ObjectDriver}} = 'selected' if $src{ObjectDriver};
-  $dest_selected{$dest{ObjectDriver}} = 'selected' if $dest{ObjectDriver};
-  print <<HTML;
+    my %src_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
+    my %dst_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
+    $src_selected{$src{ObjectDriver}} = 'selected' if $src{ObjectDriver};
+    $dst_selected{$dst{ObjectDriver}} = 'selected' if $dst{ObjectDriver};
+
+    print <<HTML;
 <p>Please fill the following:</p>
 
 <form method="post" action="$0">
@@ -93,23 +97,23 @@ if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
 <legend>Destination DB Configuration</legend>
 <dl>
 <dt>DataSource: (mandatory if using BerkeleyDB)</dt>
-<dd><input name="dest_DataSource" type="text" value="$dest{DataSource}" /></dd>
+<dd><input name="dst_DataSource" type="text" value="$dst{DataSource}" /></dd>
 <dt>ObjectDriver:</dt>
-<dd><select name="dest_ObjectDriver">
+<dd><select name="dst_ObjectDriver">
 <option value="">Select a driver</option>
-<option value="DBM" $dest_selected{'DBM'}>BerkeleyDB</option>
-<option value="DBI::mysql" $dest_selected{'DBI::mysql'}>MySQL</option>
-<option value="DBI::postgres" $dest_selected{'DBI::postgres'}>PostgreSQL</option>
-<option value="DBI::sqlite" $dest_selected{'DBI::sqlite'}>SQLite</option>
+<option value="DBM" $dst_selected{'DBM'}>BerkeleyDB</option>
+<option value="DBI::mysql" $dst_selected{'DBI::mysql'}>MySQL</option>
+<option value="DBI::postgres" $dst_selected{'DBI::postgres'}>PostgreSQL</option>
+<option value="DBI::sqlite" $dst_selected{'DBI::sqlite'}>SQLite</option>
 </select></dd>
 <dt>Database:</dt>
-<dd><input name="dest_Database" type="text" value="$dest{Database}" /></dd>
+<dd><input name="dst_Database" type="text" value="$dst{Database}" /></dd>
 <dt>DBUser:</dt>
-<dd><input name="dest_DBUser" type="text" value="$dest{DBUser}" /></dd>
+<dd><input name="dst_DBUser" type="text" value="$dst{DBUser}" /></dd>
 <dt>DBHost:</dt>
-<dd><input name="dest_DBHost" type="text" value="$dest{DBHost}" /></dd>
+<dd><input name="dst_DBHost" type="text" value="$dst{DBHost}" /></dd>
 <dt>DBPassword:</dt>
-<dd><input name="dest_DBPassword" type="password" value="$dest{DBPassword}" /></dd>
+<dd><input name="dst_DBPassword" type="password" value="$dst{DBPassword}" /></dd>
 </dl>
 </fieldset>
 
@@ -120,110 +124,114 @@ HTML
 
 } else {
 
-  eval {
+eval {
     local $SIG{__WARN__} = sub { print "**** WARNING: $_[0]\n" };
 
     require MT::Object;
-
-    # Preload schema to the dest DB
-    my ($type) = $dest{ObjectDriver} =~ /^DBI::(.*)$/;
+    my ($type) = $dst{ObjectDriver} =~ /^DBI::(.*)$/;
     if ($type) {
-      # set dest driver
-      for my $dbspec (@DBSPECS) {
-	$cfg->set($dbspec, $dest{$dbspec});
-      }
-      MT::Object->set_driver($dest{ObjectDriver})
-	  or die MT::ObjectDriver->errstr;
-      my $dbh = MT::Object->driver->{dbh};
-      my $schema = File::Spec->catfile($MT_DIR, 'schemas', $type . '.dump');
-      open FH, $schema or die "Can't open schema file '$schema': $!";
-      my $ddl;
-      { local $/; $ddl = <FH> }
-      close FH;
-      my @stmts = split /;/, $ddl;
-      print "Loading database schema...\n\n";
-      for my $stmt (@stmts) {
+    # set dst driver
+    for my $dbspec (@DBSPECS) {
+        $cfg->set($dbspec, $dst{$dbspec});
+    }
+    MT::Object->set_driver($dst{ObjectDriver})
+        or die MT::ObjectDriver->errstr;
+    my $dbh = MT::Object->driver->{dbh};
+    $dbh->begin_work if $type eq 'sqlite';
+    my $schema = File::Spec->catfile($MT_DIR, 'schemas', $type . '.dump');
+    open FH, $schema or die "Can't open schema file '$schema': $!";
+    my $ddl;
+    { local $/; $ddl = <FH> }
+    close FH;
+    my @stmts = split /;/, $ddl;
+    print "<p>Loading database schema...</p>\n\n";
+    for my $stmt (@stmts) {
         $stmt =~ s!^\s*!!;
         $stmt =~ s!\s*$!!;
         next unless $stmt =~ /\S/;
         $dbh->do($stmt) or die $dbh->errstr;
-      }
+    }
+    $dbh->commit if $type eq 'sqlite';
     }
 
     ## %ids will hold the highest IDs of each class.
     my %ids;
 
     for my $class (@CLASSES) {
-      print "<p>Dumping $class:<br />\n";
+	print "<p>Dumping $class:<br />\n";
 
-      # set source driver
-      for my $dbspec (@DBSPECS) {
-	$cfg->set($dbspec, $src{$dbspec});
-      }
-      MT::Object->set_driver($src{ObjectDriver});
-
-      eval "use $class";
-      my $iter = $class->load_iter;
-
-      my %names;
-
-      # set dest driver
-      for my $dbspec (@DBSPECS) {
-	$cfg->set($dbspec, $dest{$dbspec});
-      }
-      MT::Object->set_driver($dest{ObjectDriver});
-
-      my $i = 0;
-      while (my $o = $iter->()) {
-	$ids{$class} = $o->id
-	  if !$ids{$class} || $o->id > $ids{$class};
-	## Look for duplicate template, category, and author names,
-	## because we have uniqueness constraints in the DB.
-	if ($class eq 'MT::Template') {
-	  my $key = lc($o->name) . $o->blog_id;
-	  if ($names{$class}{$key}++) {
-	    print "        Found duplicate template name '" .
-	      $o->name;
-	    $o->name($o->name . ' ' . $names{$class}{$key});
-	    print "'; renaming to '" . $o->name . "'\n";
-	  }
-	  ## Touch the text column to make sure we read in
-	  ## any linked templates.
-	  my $text = $o->text;
-	} elsif ($class eq 'MT::Author') {
-	  my $key = lc($o->name);
-	  if ($names{$class . $o->type}{$key}++) {
-	    print "        Found duplicate author name '" .
-	      $o->name;
-	    $o->name($o->name . ' ' . $names{$class}{$key});
-	    print "'; renaming to '" . $o->name . "'\n";
-	  }
-	  $o->email('') unless defined $o->email;
-	  $o->set_password('') unless defined $o->password;
-	} elsif ($class eq 'MT::Category') {
-	  my $key = lc($o->label) . $o->blog_id;
-	  if ($names{$class}{$key}++) {
-	    print "        Found duplicate category label '" .
-	      $o->label;
-	    $o->label($o->label . ' ' . $names{$class}{$key});
-	    print "'; renaming to '" . $o->label . "'\n";
-	  }
-	} elsif ($class eq 'MT::Trackback') {
-	  $o->entry_id(0) unless defined $o->entry_id;
-	  $o->category_id(0) unless defined $o->category_id;
-	} elsif ($class eq 'MT::Entry') {
-	  $o->allow_pings(0)
-	    if defined $o->allow_pings && $o->allow_pings eq '';
-	  $o->allow_comments(0)
-	    if defined $o->allow_comments && $o->allow_comments eq '';
+	# set source driver
+	for my $dbspec (@DBSPECS) {
+	    $cfg->set($dbspec, $src{$dbspec});
 	}
+	MT::Object->set_driver($src{ObjectDriver});
 
-	$i++;
-	print $o->save ? "." : "!<br />" . $o->errstr;
-	$i % 10 or print " ";
-	$i % 100 or print "<br />";
-      }
-      print "</p>\n\n";
+        eval "use $class";
+        my $iter = $class->load_iter;
+
+        my %names;
+
+	# set dst driver
+	for my $dbspec (@DBSPECS) {
+	    $cfg->set($dbspec, $dst{$dbspec});
+	}
+	MT::Object->set_driver($dst{ObjectDriver});
+	MT::Object->driver->{dbh}->begin_work if $type eq 'sqlite';
+
+	my $i = 0;
+        while (my $obj = $iter->()) {
+            $ids{$class} = $obj->id
+                if !$ids{$class} || $obj->id > $ids{$class};
+            ## Look for duplicate template, category, and author names,
+            ## because we have uniqueness constraints in the DB.
+            if ($class eq 'MT::Template') {
+                my $key = lc($obj->name) . $obj->blog_id;
+                if ($names{$class}{$key}++) {
+                    print "        Found duplicate template name '" .
+                          $obj->name;
+                    $obj->name($obj->name . ' ' . $names{$class}{$key});
+                    print "'; renaming to '" . $obj->name . "'\n";
+                }
+                ## Touch the text column to make sure we read in
+                ## any linked templates.
+                my $text = $obj->text;
+            } elsif ($class eq 'MT::Author') {
+                my $key = lc($obj->name);
+                if ($names{$class . $obj->type}{$key}++) {
+                    print "        Found duplicate author name '" .
+                          $obj->name;
+                    $obj->name($obj->name . ' ' . $names{$class}{$key});
+                    print "'; renaming to '" . $obj->name . "'\n";
+                }
+                $obj->email('') unless defined $obj->email;
+                $obj->set_password('') unless defined $obj->password;
+            } elsif ($class eq 'MT::Category') {
+                my $key = lc($obj->label) . $obj->blog_id;
+                if ($names{$class}{$key}++) {
+                    print "        Found duplicate category label '" .
+                          $obj->label;
+                    $obj->label($obj->label . ' ' . $names{$class}{$key});
+                    print "'; renaming to '" . $obj->label . "'\n";
+                }
+            } elsif ($class eq 'MT::Trackback') {
+                $obj->entry_id(0) unless defined $obj->entry_id;
+                $obj->category_id(0) unless defined $obj->category_id;
+            } elsif ($class eq 'MT::Entry') {
+                $obj->allow_pings(0)
+                    if defined $obj->allow_pings && $obj->allow_pings eq '';
+                $obj->allow_comments(0)
+                    if defined $obj->allow_comments && $obj->allow_comments eq '';
+            }
+
+	    $i++;
+            $obj->save
+                or die $obj->errstr;
+	    print ".";
+	    $i % 10 or print " ";
+	    $i % 100 or print "<br />\n";
+	}
+	print "</p>\n\n";
+	MT::Object->driver->{dbh}->commit if $type eq 'sqlite';
     }
 
     if ($type eq 'postgres') {
@@ -237,20 +245,21 @@ HTML
                 or die $dbh->errstr;
         }
     }
-
-  };
-
-  if ($@) {
+};
+if ($@) {
     print <<HTML;
-<p><strong>An error occurred while loading data: $@</strong></p>
-</body>
-</html>
+<p>An error occurred while loading data: <br />
+$@</p>
 HTML
-  } else {
+} else {
     print <<HTML;
-<p><strong>Done copying data from $src{ObjectDriver} to $dest{ObjectDriver}.</strong></p>
-</body>
-</html>
+<p>Done copying data from $src{ObjectDriver} to $dst{ObjectDriver}! All went well.</p>
 HTML
-  }
 }
+
+}
+
+print <<HTML;
+</body>
+</html>
+HTML
