@@ -89,7 +89,7 @@ if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
 <dt>DBHost:</dt>
 <dd><input name="src_DBHost" type="text" value="$src{DBHost}" /></dd>
 <dt>DBPassword:</dt>
-<dd><input name="src_DBPassword" type="password" value="$src{DBPassword}" /></dd>
+<dd><input name="src_DBPassword" type="password" value="" /></dd>
 </dl>
 </fieldset>
 
@@ -132,7 +132,7 @@ eval {
     if ($type) {
     # set dst driver
     for my $dbspec (@DBSPECS) {
-        $cfg->set($dbspec, $dst{$dbspec});
+	$cfg->set($dbspec, $dst{$dbspec});
     }
     MT::Object->set_driver($dst{ObjectDriver})
         or die MT::ObjectDriver->errstr;
