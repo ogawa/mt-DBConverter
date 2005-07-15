@@ -2,11 +2,13 @@
 # mt-db-convert.cgi: converting your MT data between multiple db engines
 # This is a derived work from the following:
 #
-# Copyright 2001-2004 Six Apart. This code cannot be redistributed without
+# Copyright 2001-2005 Six Apart. This code cannot be redistributed without
 # permission from www.movabletype.org.
 #
-# $Id: mt-db2sql.cgi,v 1.18 2004/09/29 21:33:03 ezra Exp $
+# $Id: mt-db2sql.cgi 12446 2005-05-25 21:32:39Z bchoate $
 use strict;
+
+my $VERSION = '0.11';
 
 my($MT_DIR);
 BEGIN {
@@ -23,9 +25,9 @@ local $| = 1;
 print "Content-Type: text/html\n\n";
 print <<HTML;
 <html>
-<head><title>MT-DB-CONVERT: Converting your MT data</title></head>
+<head><title>mt-db-convert $VERSION: Converting your MT data</title></head>
 <body>
-<p><strong>MT-DB-CONVERT: Coverting your MT data between multiple db engines</strong></p>
+<p><strong>mt-db-convert $VERSION: Coverting your MT data between DB engines</strong></p>
 HTML
 
 my @CLASSES = qw( MT::Author MT::Blog MT::Category MT::Comment MT::Entry
@@ -46,33 +48,33 @@ use CGI;
 my $q = CGI->new;
 
 my (%src, %dst);
-
-for my $dbspec (@DBSPECS) {
-  $src{$dbspec} = $q->param('src_' . $dbspec) || '';
-  $dst{$dbspec} = $q->param('dst_' . $dbspec) || '';
+foreach (@DBSPECS) {
+    $src{$_} = $q->param('src_' . $_) || '';
+    $dst{$_} = $q->param('dst_' . $_) || '';
 }
 
 # If src and dst dbspecs not given
 if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
     !$dst{ObjectDriver} || ($dst{ObjectDriver} eq 'DBM' && $dst{DataSource})) {
 
-    for my $dbspec (@DBSPECS) {
-	$src{$dbspec} ||= $cfg->$dbspec();
-    }
+    $src{$_} ||= $cfg->$_() foreach (@DBSPECS);
 
     my %src_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
     my %dst_selected = ('DBM' => '', 'DBI::mysql' => '', 'DBI::postgres' => '', 'DBI::sqlite' => '');
     $src_selected{$src{ObjectDriver}} = 'selected' if $src{ObjectDriver};
     $dst_selected{$dst{ObjectDriver}} = 'selected' if $dst{ObjectDriver};
 
+    my $script_name = ($0 =~ m![/\\]([^/\\]+)$!) ? $1 : 'mt-db-convert.cgi';
+
     print <<HTML;
 <p>Please fill the following:</p>
 
-<form method="post" action="$0">
-<fieldset style="float:left; width:40%">
+<form method="post" action="$script_name">
+<style>fieldset { width: 40%; float: left; }</style>
+<fieldset>
 <legend>Source DB Configuration</legend>
 <dl>
-<dt>DataSource: (mandatory if using BerkeleyDB)</dt>
+<dt>DataSource: (Required for BerkeleyDB)</dt>
 <dd><input name="src_DataSource" type="text" value="$src{DataSource}" /></dd>
 <dt>ObjectDriver:</dt>
 <dd><select name="src_ObjectDriver">
@@ -93,10 +95,10 @@ if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
 </dl>
 </fieldset>
 
-<fieldset style="float:left; width:40%">
+<fieldset>
 <legend>Destination DB Configuration</legend>
 <dl>
-<dt>DataSource: (mandatory if using BerkeleyDB)</dt>
+<dt>DataSource: (Required for BerkeleyDB)</dt>
 <dd><input name="dst_DataSource" type="text" value="$dst{DataSource}" /></dd>
 <dt>ObjectDriver:</dt>
 <dd><select name="dst_ObjectDriver">
@@ -119,7 +121,6 @@ if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
 
 <p style="clear:both;"><input type="submit" value="Convert" /></p>
 </form>
-
 HTML
 
 } else {
@@ -131,9 +132,7 @@ eval {
     my ($type) = $dst{ObjectDriver} =~ /^DBI::(.*)$/;
     if ($type) {
     # set dst driver
-    for my $dbspec (@DBSPECS) {
-	$cfg->set($dbspec, $dst{$dbspec});
-    }
+    $cfg->set($_, $dst{$_}) foreach (@DBSPECS);
     MT::Object->set_driver($dst{ObjectDriver})
         or die MT::ObjectDriver->errstr;
     my $dbh = MT::Object->driver->{dbh};
@@ -161,20 +160,17 @@ eval {
 	print "<p>Dumping $class:<br />\n";
 
 	# set source driver
-	for my $dbspec (@DBSPECS) {
-	    $cfg->set($dbspec, $src{$dbspec});
-	}
+	$cfg->set($_, $src{$_}) foreach (@DBSPECS);
 	MT::Object->set_driver($src{ObjectDriver});
 
         eval "use $class";
         my $iter = $class->load_iter;
 
         my %names;
+        my %cat_parent;
 
 	# set dst driver
-	for my $dbspec (@DBSPECS) {
-	    $cfg->set($dbspec, $dst{$dbspec});
-	}
+	$cfg->set($_, $dst{$_}) foreach (@DBSPECS);
 	MT::Object->set_driver($dst{ObjectDriver});
 	MT::Object->driver->{dbh}->begin_work if $type eq 'sqlite';
 
@@ -213,6 +209,11 @@ eval {
                     $obj->label($obj->label . ' ' . $names{$class}{$key});
                     print "'; renaming to '" . $obj->label . "'\n";
                 }
+                # save the parent value for assignment at the end
+                if ($obj->parent) {
+                    $cat_parent{$obj->id} = $obj->parent;
+                    $obj->parent(0);
+                }
             } elsif ($class eq 'MT::Trackback') {
                 $obj->entry_id(0) unless defined $obj->entry_id;
                 $obj->category_id(0) unless defined $obj->category_id;
@@ -221,6 +222,8 @@ eval {
                     if defined $obj->allow_pings && $obj->allow_pings eq '';
                 $obj->allow_comments(0)
                     if defined $obj->allow_comments && $obj->allow_comments eq '';
+            } elsif ($class eq 'MT::Blog') {
+		$obj->touch(); # for updating children_modified_on field
             }
 
 	    $i++;
@@ -229,7 +232,15 @@ eval {
 	    print ".";
 	    $i % 10 or print " ";
 	    $i % 100 or print "<br />\n";
-	}
+        }
+
+        # fix up the category parents
+        foreach my $id (keys %cat_parent) {
+            my $cat = MT::Category->load($id);
+            $cat->parent( $cat_parent{$id} );
+            $cat->save;
+        }
+
 	print "</p>\n\n";
 	MT::Object->driver->{dbh}->commit if $type eq 'sqlite';
     }
@@ -259,7 +270,4 @@ HTML
 
 }
 
-print <<HTML;
-</body>
-</html>
-HTML
+print "</body>\n</html>\n";
