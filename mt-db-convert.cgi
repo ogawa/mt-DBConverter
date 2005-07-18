@@ -8,7 +8,7 @@
 # $Id: mt-db2sql.cgi 12446 2005-05-25 21:32:39Z bchoate $
 use strict;
 
-my $VERSION = '0.11';
+my $VERSION = '0.12';
 
 my($MT_DIR);
 BEGIN {
