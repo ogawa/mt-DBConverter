@@ -54,8 +54,8 @@ foreach (@DBSPECS) {
 }
 
 # If src and dst dbspecs not given
-if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && $src{DataSource}) ||
-    !$dst{ObjectDriver} || ($dst{ObjectDriver} eq 'DBM' && $dst{DataSource})) {
+if (!$src{ObjectDriver} || ($src{ObjectDriver} eq 'DBM' && !$src{DataSource}) ||
+    !$dst{ObjectDriver} || ($dst{ObjectDriver} eq 'DBM' && !$dst{DataSource})) {
 
     $src{$_} ||= $cfg->$_() foreach (@DBSPECS);
 
@@ -129,7 +129,7 @@ eval {
     local $SIG{__WARN__} = sub { print "**** WARNING: $_[0]\n" };
 
     require MT::Object;
-    my ($type) = $dst{ObjectDriver} =~ /^DBI::(.*)$/;
+    my $type = ($dst{ObjectDriver} =~ /^DBI::(.*)$/) ? $1 : '';
     if ($type) {
     # set dst driver
     $cfg->set($_, $dst{$_}) foreach (@DBSPECS);
