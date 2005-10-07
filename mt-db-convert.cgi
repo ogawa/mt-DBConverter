@@ -43,6 +43,8 @@ eval {
 
     require MT;
     my $mt = MT->new() or die MT->errstr;
+    die "This script is for Movable Type 3.2 or above."
+        unless $mt->version_number >= 3.2;
 
     my $cfg = $mt->{cfg};
 
@@ -217,11 +219,11 @@ sub show_header {
   <style type="text/css">
   body { font-family: "trebuchet ms", arial, sans-serif; font-size: 90%; }
     h1 { font-size: 100%; }
-    fieldset { width: 40%; float: left; }
+    fieldset { width: 40%; float: left; background: #EEE;}
   </style>
 </head>
 <body>
-<h1>mt-db-convert.cgi($Rev$ $Date$) Converting your MT data between DB engines</h1>
+<h1>mt-db-convert.cgi($Rev$): Converting your MT data between DB engines (for MT 3.2)</h1>
 HTML
 }
 
@@ -295,6 +297,7 @@ HTML
 
 sub show_footer {
     my $html = <<'HTML';
+<hr />
 <address>Hirotaka Ogawa (<a href="http://as-is.net/blog/">http://as-is.net/blog/</a>)</address>
 </body>
 </html>
