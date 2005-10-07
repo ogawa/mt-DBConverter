@@ -44,7 +44,7 @@ eval {
     require MT;
     my $mt = MT->new() or die MT->errstr;
     die "This script is for Movable Type 3.2 or above."
-        if $mt->version_number < 3.2;
+        unless $mt->version_number >= 3.2;
 
     my $cfg = $mt->{cfg};
 
