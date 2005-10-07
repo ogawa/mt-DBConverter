@@ -221,7 +221,7 @@ sub show_header {
   </style>
 </head>
 <body>
-<h1>mt-db-convert.cgi(Rev: $Rev$): Converting your MT data between DB engines</h1>
+<h1>mt-db-convert.cgi($Rev$ $Date$) Converting your MT data between DB engines</h1>
 HTML
 }
 
