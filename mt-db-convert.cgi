@@ -66,6 +66,7 @@ eval {
         exit;
     }
 
+    print "<pre>\n\n";
     require MT::Object;
     my $type = ($dst_cfg->{ObjectDriver} =~ /^DBI::(.*)$/) ? $1 : '';
     # set dst driver
@@ -79,7 +80,6 @@ eval {
     foreach (@CLASSES) {
         push @stmts, MT::Upgrade->check_class($_);
     }
-    print "<pre>\n\n";
     print "Loading database schema...\n\n";
     MT::Upgrade->do_upgrade(Install => 1);
 
@@ -206,6 +206,22 @@ HTML
 Done copying data from $src_cfg->{ObjectDriver} to $dst_cfg->{ObjectDriver}! All went well.
 
 HTML
+    print "Your recommended setting\n-------------------------------------\n";
+    foreach (@DBSPECS) {
+        next unless $src_cfg->{$_};
+        if (($src_cfg->{ObjectDriver} eq 'DBM' && $_ ne 'ObjectDriver') ||
+            ($src_cfg->{ObjectDriver} ne 'DBM' && $_ ne 'DataSource')) {
+            print "# $_ $src_cfg->{$_}\n";
+        }
+    }
+    foreach (@DBSPECS) {
+        next unless $dst_cfg->{$_};
+        if (($dst_cfg->{ObjectDriver} eq 'DBM' && $_ ne 'ObjectDriver') ||
+            ($dst_cfg->{ObjectDriver} ne 'DBM' && $_ ne 'DataSource')) {
+            print "$_ $dst_cfg->{$_}\n";
+        }
+    }
+    print "-------------------------------------\n";
 }
 
 print "</pre>\n";
