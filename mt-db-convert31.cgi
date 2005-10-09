@@ -242,7 +242,7 @@ sub show_form {
     my (%src_sel, %dst_sel);
     for (qw( DBM DBI::mysql DBI::postgres DBI::sqlite )) {
         $src_sel{$_} = ($_ eq $src_cfg->{ObjectDriver}) ? 'selected' : '';
-        $dst_sel{$_} = ($_ eq $src_cfg->{ObjectDriver}) ? 'selected' : '';
+        $dst_sel{$_} = ($_ eq $dst_cfg->{ObjectDriver}) ? 'selected' : '';
     }
     my $html = <<HTML;
 <p>Please fill the following:</p>
