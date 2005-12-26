@@ -247,61 +247,136 @@ sub show_form {
     my $html = <<HTML;
 <p>Please fill the following:</p>
 
-<form method="post" action="$name">
+<form id="dbconvert" method="post" action="$name">
   <fieldset>
     <legend>Source DB Configuration</legend>
-    <dl>
-      <dt>DataSource: (Required for BerkeleyDB)</dt>
-      <dd><input name="src_DataSource" type="text" value="$src_cfg->{DataSource}" /></dd>
-      <dt>ObjectDriver:</dt>
-      <dd>
-        <select name="src_ObjectDriver">
-          <option value="">Select a driver</option>
-          <option value="DBM" $src_sel{'DBM'}>BerkeleyDB</option>
-          <option value="DBI::mysql" $src_sel{'DBI::mysql'}>MySQL</option>
-          <option value="DBI::postgres" $src_sel{'DBI::postgres'}>PostgreSQL</option>
-          <option value="DBI::sqlite" $src_sel{'DBI::sqlite'}>SQLite</option>
-        </select>
-      </dd>
-      <dt>Database:</dt>
-      <dd><input name="src_Database" type="text" value="$src_cfg->{Database}" /></dd>
-      <dt>DBUser:</dt>
-      <dd><input name="src_DBUser" type="text" value="$src_cfg->{DBUser}" /></dd>
-      <dt>DBHost:</dt>
-      <dd><input name="src_DBHost" type="text" value="$src_cfg->{DBHost}" /></dd>
-      <dt>DBPassword:</dt>
-      <dd><input name="src_DBPassword" type="password" value="" /></dd>
-    </dl>
+    <p>
+    <label>ObjectDriver:</label><br />
+    <select name="src_ObjectDriver" onchange="refresh_src()">
+      <option value="">Select your source driver</option>
+      <option value="DBM" $src_sel{'DBM'}>BerkeleyDB</option>
+      <option value="DBI::mysql" $src_sel{'DBI::mysql'}>MySQL</option>
+      <option value="DBI::postgres" $src_sel{'DBI::postgres'}>PostgreSQL</option>
+      <option value="DBI::sqlite" $src_sel{'DBI::sqlite'}>SQLite</option>
+    </select>
+    </p>
+
+    <p>
+    <label>DataSource:</label><br />
+    <input name="src_DataSource" type="text" value="$src_cfg->{DataSource}" size="50" /><br />
+    <small>BerkeleyDB requires the full path to your database directory (e.g., ${MT_DIR}db).</small>
+    </p>
+
+    <p>
+    <label>Database:</label><br />
+    <input name="src_Database" type="text" value="$src_cfg->{Database}" size="50" /><br />
+    <small>SQLite requires the full path to your SQLite database file (e.g., ${MT_DIR}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
+    </p>
+
+    <p>
+    <label>DBUser:</label><br />
+    <input name="src_DBUser" type="text" value="$src_cfg->{DBUser}" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database user name.</small>
+    </p>
+
+    <p>
+    <label>DBPassword:</label><br />
+    <input name="src_DBPassword" type="password" value="" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database user password.</small>
+    </p>
+
+    <p>
+    <label>DBHost:</label><br />
+    <input name="src_DBHost" type="text" value="$src_cfg->{DBHost}" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database host name.</small>
+    </p>
   </fieldset>
 
   <fieldset>
     <legend>Destination DB Configuration</legend>
-    <dl>
-      <dt>DataSource: (Required for BerkeleyDB)</dt>
-      <dd><input name="dst_DataSource" type="text" value="$dst_cfg->{DataSource}" /></dd>
-      <dt>ObjectDriver:</dt>
-      <dd>
-        <select name="dst_ObjectDriver">
-          <option value="">Select a driver</option>
-          <option value="DBM" $dst_sel{'DBM'}>BerkeleyDB</option>
-          <option value="DBI::mysql" $dst_sel{'DBI::mysql'}>MySQL</option>
-          <option value="DBI::postgres" $dst_sel{'DBI::postgres'}>PostgreSQL</option>
-          <option value="DBI::sqlite" $dst_sel{'DBI::sqlite'}>SQLite</option>
-        </select>
-      </dd>
-      <dt>Database:</dt>
-      <dd><input name="dst_Database" type="text" value="$dst_cfg->{Database}" /></dd>
-      <dt>DBUser:</dt>
-      <dd><input name="dst_DBUser" type="text" value="$dst_cfg->{DBUser}" /></dd>
-      <dt>DBHost:</dt>
-      <dd><input name="dst_DBHost" type="text" value="$dst_cfg->{DBHost}" /></dd>
-      <dt>DBPassword:</dt>
-      <dd><input name="dst_DBPassword" type="password" value="$dst_cfg->{DBPassword}" /></dd>
-    </dl>
+    <p>
+    <label>ObjectDriver:</label><br />
+    <select name="dst_ObjectDriver" onchange="refresh_dst()">
+      <option value="">Select your destination driver</option>
+      <option value="DBM" $dst_sel{'DBM'}>BerkeleyDB</option>
+      <option value="DBI::mysql" $dst_sel{'DBI::mysql'}>MySQL</option>
+      <option value="DBI::postgres" $dst_sel{'DBI::postgres'}>PostgreSQL</option>
+      <option value="DBI::sqlite" $dst_sel{'DBI::sqlite'}>SQLite</option>
+    </select>
+    </p>
+
+    <p>
+    <label>DataSource:<label><br />
+    <input name="dst_DataSource" type="text" value="$dst_cfg->{DataSource}" size="50" /><br />
+    <small>BerkeleyDB requires the full path to your database directory (e.g., ${MT_DIR}db).</small>
+    </p>
+
+    <p>
+    <label>Database:</label><br />
+    <input name="dst_Database" type="text" value="$dst_cfg->{Database}" size="50" /><br />
+    <small>SQLite requires the full path to your SQLite database file (e.g., ${MT_DIR}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
+    </p>
+
+    <p>
+    <label>DBUser:</label><br />
+    <input name="dst_DBUser" type="text" value="$dst_cfg->{DBUser}" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database user name.</small>
+    </p>
+
+    <p>
+    <label>DBPassword:</label><br />
+    <input name="dst_DBPassword" type="password" value="" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database user password.</small>
+    </p>
+
+    <p>
+    <label>DBHost:</label><br />
+    <input name="dst_DBHost" type="text" value="$dst_cfg->{DBHost}" size="50" /><br />
+    <small>MySQL and PostgreSQL require the database host name.</small>
+    </p>
   </fieldset>
 
   <p style="clear: both;"><input type="submit" value="Convert" /></p>
 </form>
+<script type="text/javascript">
+var f = document.forms['dbconvert'];
+function refresh_src() {
+  f.src_DataSource.disabled = 'disabled';
+  f.src_Database.disabled = 'disabled';
+  f.src_DBUser.disabled = 'disabled';
+  f.src_DBHost.disabled = 'disabled';
+  f.src_DBPassword.disabled = 'disabled';
+  if (f.src_ObjectDriver.value == 'DBM') {
+    f.src_DataSource.disabled = '';
+  } else if (f.src_ObjectDriver.value == 'DBI::mysql' || f.src_ObjectDriver.value == 'DBI::postgres') {
+    f.src_Database.disabled = '';
+    f.src_DBUser.disabled = '';
+    f.src_DBHost.disabled = '';
+    f.src_DBPassword.disabled = '';
+  } else if (f.src_ObjectDriver.value == 'DBI::sqlite') {
+    f.src_Database.disabled = '';
+  }
+}
+function refresh_dst() {
+  f.dst_DataSource.disabled = 'disabled';
+  f.dst_Database.disabled = 'disabled';
+  f.dst_DBUser.disabled = 'disabled';
+  f.dst_DBHost.disabled = 'disabled';
+  f.dst_DBPassword.disabled = 'disabled';
+  if (f.dst_ObjectDriver.value == 'DBM') {
+    f.dst_DataSource.disabled = '';
+  } else if (f.dst_ObjectDriver.value == 'DBI::mysql' || f.dst_ObjectDriver.value == 'DBI::postgres') {
+    f.dst_Database.disabled = '';
+    f.dst_DBUser.disabled = '';
+    f.dst_DBHost.disabled = '';
+    f.dst_DBPassword.disabled = '';
+  } else if (f.dst_ObjectDriver.value == 'DBI::sqlite') {
+    f.dst_Database.disabled = '';
+  }
+}
+refresh_src();
+refresh_dst();
+</script>
 HTML
 }
 
