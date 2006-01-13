@@ -20,15 +20,15 @@ use MT::TBPing;
 sub init {
     my $app = shift;
     $app->SUPER::init(@_) or return;
-    $app->add_methods(fixer => \&fixer);
+    $app->add_methods(check => \&fixer, fix => \&fixer);
     $app->{charset} = $app->{cfg}->PublishCharset;
-    $app->{default_mode} = 'fixer';
+    $app->{default_mode} = 'check';
     $app;
 }
 
 sub fixer {
     my $app = shift;
-    my $mode = $app->param('fixit') ? 'fixit' : 'checkit';
+    my $mode = $app->mode;
     my $html = '<html><body><pre>';
 
     my $conflicted_tb = 0;
@@ -43,34 +43,34 @@ sub fixer {
 	}
 
 	my $tb_id = $tbs{$eid}->id;
-	$html .= "MT::Trackback(id=" . $tb->id . ") is conflicted to (id=" . $tb_id . ") for entry " . $eid . "\n";
+	$html .= "MT::Trackback(id=" . $tb->id . ") conflicts with (id=" . $tb_id . ") for entry " . $eid . "\n";
 	$conflicted_tb++;
 
 	my @pings = MT::TBPing->load({ tb_id => $tb->id });
 	for my $ping (@pings) {
-	    if ($mode eq 'fixit') {
+	    if ($mode eq 'fix') {
 		$ping->tb_id($tb_id);
 		$ping->save or die $ping->errstr;
 	    }
-	    $html .= "   MT::TBPing(id=" . $ping->id . ") " . ($mode eq 'fixit' ? 'is' : 'can be') . " moved from MT::Trackback(id=" . $tb->id . ") to (id=" . $tb_id . ")\n";
+	    $html .= "   MT::TBPing(id=" . $ping->id . ") " . ($mode eq 'fix' ? 'is' : 'can be') . " moved from MT::Trackback(id=" . $tb->id . ") to (id=" . $tb_id . ")\n";
 	    $conflicted_tbping++;
 	}
 
-	$html .= "   MT::Trackback(id=" . $tb->id . ") " . ($mode eq 'fixit' ? 'is' : 'can be') . " removed\n";
+	$html .= "   MT::Trackback(id=" . $tb->id . ") " . ($mode eq 'fix' ? 'is' : 'can be') . " removed\n";
 
-	if ($mode eq 'fixit') {
+	if ($mode eq 'fix') {
 	    $tb->remove or die $tb->errstr;
 	}
     }
     $html .= "\n";
-    if ($mode eq 'fixit') {
-	$html .= ($conflicted_tb || 'No') . " conflicts are found and fixed in MT::Trackback!\n";
-	$html .= ($conflicted_tbping || 'No') . " conflicts are found and fixed in MT::TBPing!\n";
+    if ($mode eq 'fix') {
+	$html .= "$conflicted_tb conflicts are found and fixed in MT::Trackback!\n";
+	$html .= "$conflicted_tbping conflicts are found and fixed in MT::TBPing!\n";
 	$html .= "\nYou should perform rebuilding for all MT contents.\n"
 	    if $conflicted_tb || $conflicted_tbping;
     } else {
-	$html .= ($conflicted_tb || 'No') . " conflicts are found in MT::Trackback!\n";
-	$html .= ($conflicted_tbping || 'No') . " conflicts are found in MT::TBPing!\n";
+	$html .= "$conflicted_tb conflicts are found in MT::Trackback!\n";
+	$html .= "$conflicted_tbping conflicts are found in MT::TBPing!\n";
     }
     $html . '</pre></body></html>';
 }
