@@ -28,9 +28,9 @@ local $| = 1;
 print "Content-Type: text/html\n\n";
 print show_header();
 
-my @CLASSES = qw( MT::Author MT::Blog MT::Category MT::Comment MT::Entry
+my @CLASSES = qw( MT::Author MT::Blog MT::Trackback MT::Category MT::Comment MT::Entry
                   MT::IPBanList MT::Log MT::Notification MT::Permission
-                  MT::Placement MT::Template MT::TemplateMap MT::Trackback
+                  MT::Placement MT::Template MT::TemplateMap
                   MT::TBPing MT::Session MT::PluginData MT::Config );
 
 use File::Spec;
