@@ -6,7 +6,7 @@
 # permission from www.sixapart.com.  For more information, consult your
 # Movable Type license.
 #
-# $Id$
+# $Id: mt-db2sql.cgi 32264 2006-06-25 21:19:57Z bchoate $
 
 use strict;
 sub BEGIN {
@@ -105,6 +105,7 @@ eval {
         # set src driver
         $cfg->set($_, $src_cfg->{$_}) foreach (@DBSPECS);
         MT::Object->set_driver($src_cfg->{ObjectDriver});
+	MT::Object->driver->configure;
         eval "use $class";
         my $iter = $class->load_iter;
 
@@ -115,6 +116,7 @@ eval {
         # set dst driver
         $cfg->set($_, $dst_cfg->{$_}) foreach (@DBSPECS);
         MT::Object->set_driver($dst_cfg->{ObjectDriver});
+	MT::Object->driver->configure;
         MT::Object->driver->{dbh}->begin_work if $type eq 'sqlite';
         while (my $obj = $iter->()) {
             # Update IDs only auto_increment.
@@ -257,7 +259,7 @@ sub show_header {
   </style>
 </head>
 <body>
-<h1>mt-db-convert.cgi($Rev$): Converting your MT data between DB engines (for MT 3.2)</h1>
+<h1>mt-db-convert.cgi($Rev$): Converting your MT data between DB engines (for MT 3.3)</h1>
 HTML
 }
 
