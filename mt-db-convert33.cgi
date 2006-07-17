@@ -2,11 +2,11 @@
 # mt-db-convert.cgi: converting your MT data between multiple db engines
 # This is a derived work from the following:
 
-# Copyright 2001-2005 Six Apart. This code cannot be redistributed without
+# Copyright 2001-2006 Six Apart. This code cannot be redistributed without
 # permission from www.sixapart.com.  For more information, consult your
 # Movable Type license.
 #
-# $Id: mt-db2sql.cgi 15432 2005-07-29 20:41:11Z bchoate $
+# $Id$
 
 use strict;
 sub BEGIN {
@@ -24,14 +24,15 @@ sub BEGIN {
     unshift @INC, File::Spec->catdir($dir, 'extlib');
 }
 
-local $| = 1;
+$| = 1;
 print "Content-Type: text/html\n\n";
 print show_header();
 
 my @CLASSES = qw( MT::Author MT::Blog MT::Trackback MT::Category MT::Comment MT::Entry
                   MT::IPBanList MT::Log MT::Notification MT::Permission
                   MT::Placement MT::Template MT::TemplateMap
-                  MT::TBPing MT::Session MT::PluginData MT::Config );
+                  MT::TBPing MT::PluginData MT::Config MT::Session
+                  MT::FileInfo MT::Tag MT::ObjectTag );
 
 use File::Spec;
 
@@ -43,8 +44,8 @@ eval {
 
     require MT;
     my $mt = MT->new() or die MT->errstr;
-    die "This script is for Movable Type 3.2 or above."
-        unless $mt->version_number >= 3.2;
+    die "This script is for Movable Type 3.3 family."
+        unless $mt->version_number >= 3.3 && $mt->version_number < 3.4;
 
     my $cfg = $mt->{cfg};
 
@@ -75,19 +76,31 @@ eval {
         or die MT::ObjectDriver->errstr;
     my $dbh = MT::Object->driver->{dbh};
 
-    use MT::Upgrade;
     my @stmts;
+    my $driver = MT::Object->driver;
     foreach (@CLASSES) {
-        push @stmts, MT::Upgrade->check_class($_);
+        eval "require $_";
+        push @stmts, $driver->fix_class($_);
     }
     print "Loading database schema...\n\n";
-    MT::Upgrade->do_upgrade(Install => 1);
+    for my $stmt (@stmts) {
+        next if ref($stmt); # Skip triggers??? What if user is upgrading
+                            # into a populated, old schema? Should we prevent
+                            # that scenario?
+        $stmt =~ s!^\s*!!;
+        $stmt =~ s!\s*$!!;
+        next unless $stmt =~ /\S/;
+        $dbh->do($stmt) or die $dbh->errstr;
+    }
 
     ## %ids will hold the highest IDs of each class.
     my %ids;
 
     print "Loading data...\n";
-    for my $class (@CLASSES, 'MT::FileInfo' ) {
+    for my $class (@CLASSES) {
+        next if $class eq 'MT::Session';
+        next if $class eq 'MT::FileInfo';
+
         print $class, "\n";
         # set src driver
         $cfg->set($_, $src_cfg->{$_}) foreach (@DBSPECS);
@@ -123,20 +136,23 @@ eval {
                 my $text = $obj->text;
             } elsif ($class eq 'MT::Author') {
                 my $key = lc($obj->name);
-                if ($names{$class . $obj->type}{$key}++) {
+                if ($names{$class . ($obj->type || 1)}{$key}++) {
                     print "        Found duplicate author name '" .
                           $obj->name;
-                    $obj->name($obj->name . ' ' . $names{$class}{$key});
+                    $obj->name($obj->name . ' ' . $names{$class . ($obj->type || 1)}{$key});
                     print "'; renaming to '" . $obj->name . "'\n";
                 }
                 $obj->email('') unless defined $obj->email;
                 $obj->set_password('') unless defined $obj->password;
+                $obj->type(1) unless defined $obj->type;
             } elsif ($class eq 'MT::Comment') {
                 $obj->visible(1) unless defined $obj->visible;
+                $obj->junk_status(0) unless defined $obj->junk_status;
             } elsif ($class eq 'MT::TBPing') {
                 $obj->visible(1) unless defined $obj->visible;
+                $obj->junk_status(0) unless defined $obj->junk_status;
             } elsif ($class eq 'MT::Category') {
-                my $key = lc($obj->label) . $obj->blog_id;
+                my $key = lc($obj->label) . ($obj->parent || 0) . $obj->blog_id;
                 if ($names{$class}{$key}++) {
                     print "        Found duplicate category label '" .
                           $obj->label;
@@ -146,6 +162,8 @@ eval {
                 # save the parent value for assignment at the end
                 if ($obj->parent) {
                     $cat_parent{$obj->id} = $obj->parent;
+                    $obj->parent(0);
+                } else {
                     $obj->parent(0);
                 }
             } elsif ($class eq 'MT::Trackback') {

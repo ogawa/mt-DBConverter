@@ -3,20 +3,25 @@
 # This is a derived work from the following:
 
 # Copyright 2001-2005 Six Apart. This code cannot be redistributed without
-# permission from www.movabletype.org.
+# permission from www.sixapart.com.  For more information, consult your
+# Movable Type license.
 #
-# $Id: mt-db2sql.cgi 12446 2005-05-25 21:32:39Z bchoate $
-use strict;
+# $Id: mt-db2sql.cgi 15432 2005-07-29 20:41:11Z bchoate $
 
-my($MT_DIR);
-BEGIN {
-    if ($0 =~ m!(.*[/\\])!) {
-        $MT_DIR = $1;
-    } else {
-        $MT_DIR = './';
+use strict;
+sub BEGIN {
+    my $dir;
+    require File::Spec;
+    if (!($dir = $ENV{MT_HOME})) {
+        if ($0 =~ m!(.*[/\\])!) {
+            $dir = $1;
+        } else {
+            $dir = './';
+        }
+        $ENV{MT_HOME} = $dir;
     }
-    unshift @INC, $MT_DIR . 'lib';
-    unshift @INC, $MT_DIR . 'extlib';
+    unshift @INC, File::Spec->catdir($dir, 'lib');
+    unshift @INC, File::Spec->catdir($dir, 'extlib');
 }
 
 local $| = 1;
@@ -26,7 +31,7 @@ print show_header();
 my @CLASSES = qw( MT::Author MT::Blog MT::Trackback MT::Category MT::Comment MT::Entry
                   MT::IPBanList MT::Log MT::Notification MT::Permission
                   MT::Placement MT::Template MT::TemplateMap
-                  MT::TBPing );
+                  MT::TBPing MT::Session MT::PluginData MT::Config );
 
 use File::Spec;
 
@@ -37,10 +42,9 @@ eval {
     local $SIG{__WARN__} = sub { print "**** WARNING: $_[0]\n" };
 
     require MT;
-    my $mt = MT->new( Config => $MT_DIR . 'mt.cfg', Directory => $MT_DIR )
-        or die MT->errstr;
-    die "This script is for Movable Type 3.1 family."
-        unless $mt->version_number >= 3.1 && $mt->version_number < 3.2;
+    my $mt = MT->new() or die MT->errstr;
+    die "This script is for Movable Type 3.2 family."
+        unless $mt->version_number >= 3.2 && $mt->version_number < 3.3;
 
     my $cfg = $mt->{cfg};
 
@@ -65,32 +69,25 @@ eval {
     print "<pre>\n\n";
     require MT::Object;
     my $type = ($dst_cfg->{ObjectDriver} =~ /^DBI::(.*)$/) ? $1 : '';
-    if ($type) {
     # set dst driver
     $cfg->set($_, $dst_cfg->{$_}) foreach (@DBSPECS);
     MT::Object->set_driver($dst_cfg->{ObjectDriver})
         or die MT::ObjectDriver->errstr;
     my $dbh = MT::Object->driver->{dbh};
-    my $schema = File::Spec->catfile($MT_DIR, 'schemas', $type . '.dump');
-    open FH, $schema or die "Can't open schema file '$schema': $!";
-    my $ddl;
-    { local $/; $ddl = <FH> }
-    close FH;
-    my @stmts = split /;/, $ddl;
+
+    use MT::Upgrade;
+    my @stmts;
+    foreach (@CLASSES) {
+        push @stmts, MT::Upgrade->check_class($_);
+    }
     print "Loading database schema...\n\n";
-    for my $stmt (@stmts) {
-        $stmt =~ s!^\s*!!;
-        $stmt =~ s!\s*$!!;
-        next unless $stmt =~ /\S/;
-        $dbh->do($stmt) or die $dbh->errstr;
-    }
-    }
+    MT::Upgrade->do_upgrade(Install => 1);
 
     ## %ids will hold the highest IDs of each class.
     my %ids;
 
     print "Loading data...\n";
-    for my $class (@CLASSES) {
+    for my $class (@CLASSES, 'MT::FileInfo' ) {
         print $class, "\n";
         # set src driver
         $cfg->set($_, $src_cfg->{$_}) foreach (@DBSPECS);
@@ -107,8 +104,10 @@ eval {
         MT::Object->set_driver($dst_cfg->{ObjectDriver});
         MT::Object->driver->{dbh}->begin_work if $type eq 'sqlite';
         while (my $obj = $iter->()) {
+            # Update IDs only auto_increment.
             $ids{$class} = $obj->id
-                if !$ids{$class} || $obj->id > $ids{$class};
+                if $obj->properties->{column_defs}->{id} =~ /auto_increment/ &&
+                   (!$ids{$class} || $obj->id > $ids{$class});
             ## Look for duplicate template, category, and author names,
             ## because we have uniqueness constraints in the DB.
             if ($class eq 'MT::Template') {
@@ -132,6 +131,10 @@ eval {
                 }
                 $obj->email('') unless defined $obj->email;
                 $obj->set_password('') unless defined $obj->password;
+            } elsif ($class eq 'MT::Comment') {
+                $obj->visible(1) unless defined $obj->visible;
+            } elsif ($class eq 'MT::TBPing') {
+                $obj->visible(1) unless defined $obj->visible;
             } elsif ($class eq 'MT::Category') {
                 my $key = lc($obj->label) . $obj->blog_id;
                 if ($names{$class}{$key}++) {
@@ -185,6 +188,9 @@ eval {
                 or die $dbh->errstr;
         }
     }
+
+    $cfg->SchemaVersion(MT->schema_version(), 1);
+    $cfg->save_config();
 };
 if ($@) {
     print <<HTML;
@@ -233,7 +239,7 @@ sub show_header {
   </style>
 </head>
 <body>
-<h1>mt-db-convert.cgi($Rev$): Converting your MT data between DB engines (for MT 3.1)</h1>
+<h1>mt-db-convert.cgi($Rev$): Converting your MT data between DB engines (for MT 3.2)</h1>
 HTML
 }
 
@@ -264,13 +270,13 @@ sub show_form {
     <p>
     <label>DataSource:</label><br />
     <input name="src_DataSource" type="text" value="$src_cfg->{DataSource}" size="50" /><br />
-    <small>BerkeleyDB requires the full path to your database directory (e.g., ${MT_DIR}db).</small>
+    <small>BerkeleyDB requires the full path to your database directory (e.g., $ENV{MT_HOME}db).</small>
     </p>
 
     <p>
     <label>Database:</label><br />
     <input name="src_Database" type="text" value="$src_cfg->{Database}" size="50" /><br />
-    <small>SQLite requires the full path to your SQLite database file (e.g., ${MT_DIR}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
+    <small>SQLite requires the full path to your SQLite database file (e.g., $ENV{MT_HOME}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
     </p>
 
     <p>
@@ -308,13 +314,13 @@ sub show_form {
     <p>
     <label>DataSource:<label><br />
     <input name="dst_DataSource" type="text" value="$dst_cfg->{DataSource}" size="50" /><br />
-    <small>BerkeleyDB requires the full path to your database directory (e.g., ${MT_DIR}db).</small>
+    <small>BerkeleyDB requires the full path to your database directory (e.g., $ENV{MT_HOME}db).</small>
     </p>
 
     <p>
     <label>Database:</label><br />
     <input name="dst_Database" type="text" value="$dst_cfg->{Database}" size="50" /><br />
-    <small>SQLite requires the full path to your SQLite database file (e.g., ${MT_DIR}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
+    <small>SQLite requires the full path to your SQLite database file (e.g., $ENV{MT_HOME}db/sqlite.db).<br />MySQL and PostgreSQL require the database name.</small>
     </p>
 
     <p>
